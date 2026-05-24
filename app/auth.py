@@ -1,6 +1,7 @@
 """Firebase Admin initialisation and ID-token verification."""
 
 import asyncio
+import json
 
 import firebase_admin
 import firebase_admin.auth
@@ -10,7 +11,18 @@ from app.config import settings
 
 # ── one-time initialisation ──────────────────────────────────────────────────
 if not firebase_admin._apps:
-    _cred = credentials.Certificate(settings.firebase_service_account_path)
+    if settings.firebase_service_account_json:
+        # Producción (Render, etc.): JSON completo en variable de entorno
+        _cred = credentials.Certificate(json.loads(settings.firebase_service_account_json))
+    elif settings.firebase_service_account_path:
+        # Desarrollo local: ruta a fichero JSON
+        _cred = credentials.Certificate(settings.firebase_service_account_path)
+    else:
+        raise RuntimeError(
+            "Firebase credentials not configured. "
+            "Set FIREBASE_SERVICE_ACCOUNT_JSON (production) "
+            "or FIREBASE_SERVICE_ACCOUNT_PATH (local)."
+        )
     firebase_admin.initialize_app(_cred)
 
 

@@ -14,7 +14,12 @@ class Settings(BaseSettings):
     # JSON-decode list[str] env vars before validators run, so we keep it as
     # str and expose the parsed version via a computed field.
     allowed_origins: str = "http://localhost:5173"
-    firebase_service_account_path: str
+
+    # Firebase credentials — one of the two must be set:
+    #   - FIREBASE_SERVICE_ACCOUNT_PATH  → ruta a un fichero JSON (desarrollo local)
+    #   - FIREBASE_SERVICE_ACCOUNT_JSON  → contenido JSON en crudo (producción / Render)
+    firebase_service_account_path: str = ""
+    firebase_service_account_json: str = ""
 
     @computed_field  # type: ignore[misc]
     @property
