@@ -81,6 +81,17 @@ class TypingEvent(_Base):
     conversationId: str = Field(min_length=1)
 
 
+class BuzzEvent(_Base):
+    """``{"type": "buzz", "conversationId": str}``
+
+    Best-effort like typing — no error is surfaced if the conversation
+    is not found or the sender is not a participant.
+    """
+
+    type: Literal["buzz"]
+    conversationId: str = Field(min_length=1)
+
+
 class StatusUpdateEvent(_Base):
     """``{"type": "status_update", "status": str}``
 

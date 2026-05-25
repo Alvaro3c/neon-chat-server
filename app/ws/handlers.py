@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any
 
 from app.db import db
-from app.ws.events import ErrorEvent, MessageEvent, ReactionEvent, TypingEvent
+from app.ws.events import BuzzEvent, ErrorEvent, MessageEvent, ReactionEvent, TypingEvent
 from app.ws.manager import manager
 
 logger = logging.getLogger(__name__)
@@ -333,6 +333,59 @@ async def handle_reaction(sender_uid: str, payload: dict[str, Any]) -> None:
         message_id,
         sender_uid,
     )
+
+
+# ---------------------------------------------------------------------------
+# handle_buzz
+# ---------------------------------------------------------------------------
+
+async def handle_buzz(sender_uid: str, payload: dict[str, Any]) -> None:
+    """Handle ``{"type": "buzz", "conversationId": str}``.
+
+    Best-effort — mirrors handle_typing.  Verifies the sender is a
+    participant, then forwards a BuzzEvent (with the sender's display name)
+    to the OTHER participant only.  No error is surfaced to the client on
+    validation / Firestore failures; the nudge is silently dropped.
+    """
+    conversation_id: Any = payload.get("conversationId")
+
+    if not isinstance(conversation_id, str) or not conversation_id.strip():
+        return
+
+    try:
+        doc_ref = db.collection("conversations").document(conversation_id)
+        doc_snapshot = await asyncio.to_thread(doc_ref.get)
+    except Exception:
+        logger.exception("Firestore error fetching conversation %s for buzz", conversation_id)
+        return
+
+    if not doc_snapshot.exists:
+        return
+
+    conv_data: dict[str, Any] = doc_snapshot.to_dict() or {}
+    participants: list[str] = conv_data.get("participants", [])
+
+    if sender_uid not in participants:
+        return
+
+    others = [uid for uid in participants if uid != sender_uid]
+    if not others:
+        return
+
+    user_data = manager.get_user_data(sender_uid) or {}
+    sender_name: str = user_data.get("nickName") or user_data.get("displayName") or ""
+
+    event: BuzzEvent = {
+        "type": "buzz",
+        "conversationId": conversation_id,
+        "senderUid": sender_uid,
+        "senderName": sender_name,
+    }
+
+    for uid in others:
+        await manager.send_to(uid, event)
+
+    logger.info("buzz | conv=%s | from=%s", conversation_id, sender_uid)
 
 
 # ---------------------------------------------------------------------------

@@ -60,6 +60,13 @@ class ContactProfileEvent(TypedDict):
     photoURL: str
 
 
+class BuzzEvent(TypedDict):
+    type: Literal["buzz"]
+    conversationId: str
+    senderUid: str
+    senderName: str
+
+
 class ErrorEvent(TypedDict):
     type: Literal["error"]
     code: str

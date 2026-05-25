@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from app.auth import verify_id_token
 from app.ws import schemas as ws_schemas
 from app.ws.events import AuthErrorEvent, AuthOkEvent, ContactProfileEvent, ContactStatusEvent, ErrorEvent
-from app.ws.handlers import handle_message, handle_reaction, handle_typing
+from app.ws.handlers import handle_buzz, handle_message, handle_reaction, handle_typing
 from app.ws.manager import manager
 from app.ws.presence import get_contact_uids
 
@@ -30,6 +30,7 @@ _MAX_MOOD = 140  # characters
 _INCOMING_SCHEMAS: dict[str, type] = {
     "message":        ws_schemas.MessageEvent,
     "typing":         ws_schemas.TypingEvent,
+    "buzz":           ws_schemas.BuzzEvent,
     "reaction":       ws_schemas.ReactionEvent,
     "status_update":  ws_schemas.StatusUpdateEvent,
     "mood_update":    ws_schemas.MoodUpdateEvent,
@@ -229,6 +230,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
                 elif msg_type == "typing":
                     await handle_typing(uid, payload)
+
+                elif msg_type == "buzz":
+                    await handle_buzz(uid, payload)
 
                 elif msg_type == "reaction":
                     await handle_reaction(uid, payload)
