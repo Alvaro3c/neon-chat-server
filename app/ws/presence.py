@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from google.cloud.firestore_v1.base_query import FieldFilter
+
 from app.db import db
 
 logger = logging.getLogger(__name__)
@@ -43,8 +45,8 @@ async def get_contact_uids(uid: str) -> list[str]:
     def _query() -> list[str]:
         docs = (
             db.collection("conversations")
-            .where("participants", "array_contains", uid)
-            .where("status", "==", "active")
+            .where(filter=FieldFilter("participants", "array_contains", uid))
+            .where(filter=FieldFilter("status", "==", "active"))
             .stream()
         )
         seen: set[str] = set()

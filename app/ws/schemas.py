@@ -81,10 +81,18 @@ class TypingEvent(_Base):
 
 
 class StatusUpdateEvent(_Base):
-    """``{"type": "status_update", "status": "online"|"away"|"busy"|"offline"}``"""
+    """``{"type": "status_update", "status": str}``
+
+    Accepts any non-empty string.  The full list of valid values is defined
+    client-side in ``USER_STATUSES`` (``online``, ``away``, ``busy``,
+    ``offline``, ``sober``, ``breaking``, ``noregret``, ``train``,
+    ``misrep``, ``scotty``); the server stores and forwards the value
+    verbatim — dot-colour and label resolution are the front-end's
+    responsibility.
+    """
 
     type: Literal["status_update"]
-    status: Literal["online", "away", "busy", "offline"]
+    status: str = Field(min_length=1)
 
 
 class MoodUpdateEvent(_Base):

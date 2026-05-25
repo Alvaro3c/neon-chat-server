@@ -23,9 +23,6 @@ router = APIRouter()
 
 _AUTH_TIMEOUT = 5  # seconds
 
-# Accepted values for the ``status_update`` message type.
-_VALID_STATUSES: frozenset[str] = frozenset({"online", "away", "busy", "offline"})
-
 _MAX_MOOD = 140  # characters
 
 # Schema lookup for incoming event validation (msg_type → Pydantic model).
@@ -300,23 +297,14 @@ async def _handle_status_update(
 ) -> None:
     """Handle ``{"type": "status_update", "status": str}``.
 
-    Valid statuses: ``online``, ``away``, ``busy``, ``offline``.
-    Persists the new status in the manager and broadcasts a
+    Stores the status value exactly as received — no server-side mapping.
+    The full list of valid values and all label/dot-colour resolution live
+    in the front-end ``USER_STATUSES`` config.  Broadcasts a
     ``contact_status`` event (carrying the user's current mood) to all
     connected contacts that share an active conversation.
     """
-    status: Any = payload.get("status")
-
-    if not isinstance(status, str) or status not in _VALID_STATUSES:
-        error_event: ErrorEvent = {
-            "type": "error",
-            "code": "INVALID_STATUS",
-            "message": (
-                f"status must be one of: {', '.join(sorted(_VALID_STATUSES))}"
-            ),
-        }
-        await websocket.send_text(json.dumps(error_event))
-        return
+    parsed = ws_schemas.StatusUpdateEvent.model_validate(payload)
+    status: str = parsed.status
 
     manager.update_user_data(uid, status=status)
     user_data = manager.get_user_data(uid) or {}
