@@ -28,7 +28,8 @@ class ConnectionManager:
         """Register a new authenticated connection."""
         self._connections[uid] = websocket
         self._user_data[uid] = {
-            "displayName": display_name,
+            "displayName": display_name,  # from Firebase JWT (Google account name)
+            "nickName": "",               # custom nick set via profile_update (empty = use displayName)
             "email": email,
             "photoURL": photo_url,
             "status": "online",

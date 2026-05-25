@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from app.auth import verify_id_token
 from app.ws import schemas as ws_schemas
-from app.ws.events import AuthErrorEvent, AuthOkEvent, ContactStatusEvent, ErrorEvent
+from app.ws.events import AuthErrorEvent, AuthOkEvent, ContactProfileEvent, ContactStatusEvent, ErrorEvent
 from app.ws.handlers import handle_message, handle_reaction, handle_typing
 from app.ws.manager import manager
 from app.ws.presence import get_contact_uids
@@ -28,12 +28,13 @@ _MAX_MOOD = 140  # characters
 # Schema lookup for incoming event validation (msg_type → Pydantic model).
 # Unknown types are not in this map and are handled by the "else" branch.
 _INCOMING_SCHEMAS: dict[str, type] = {
-    "message":       ws_schemas.MessageEvent,
-    "typing":        ws_schemas.TypingEvent,
-    "reaction":      ws_schemas.ReactionEvent,
-    "status_update": ws_schemas.StatusUpdateEvent,
-    "mood_update":   ws_schemas.MoodUpdateEvent,
-    "refresh_token": ws_schemas.RefreshTokenEvent,
+    "message":        ws_schemas.MessageEvent,
+    "typing":         ws_schemas.TypingEvent,
+    "reaction":       ws_schemas.ReactionEvent,
+    "status_update":  ws_schemas.StatusUpdateEvent,
+    "mood_update":    ws_schemas.MoodUpdateEvent,
+    "refresh_token":  ws_schemas.RefreshTokenEvent,
+    "profile_update": ws_schemas.ProfileUpdateEvent,
 }
 
 
@@ -241,6 +242,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 elif msg_type == "refresh_token":
                     await _handle_refresh_token(uid, websocket, payload)
 
+                elif msg_type == "profile_update":
+                    await _handle_profile_update(uid, payload)
+
                 else:
                     logger.warning("Unhandled message type %r from %s", msg_type, uid)
 
@@ -354,6 +358,34 @@ async def _handle_mood_update(
     logger.info("mood_update | uid=%s mood=%r", uid, mood)
 
 
+async def _broadcast_profile(
+    uid: str,
+    display_name: str,
+    photo_url: str,
+) -> None:
+    """Broadcast a ``contact_profile`` event to all connected contacts of *uid*.
+
+    Mirrors ``_broadcast_presence`` but carries profile fields instead of
+    presence fields.  Called whenever the user changes their custom nickname.
+    """
+    contact_uids = await get_contact_uids(uid)
+    connected = set(manager.get_connected_uids())
+    targets = [u for u in contact_uids if u in connected]
+    event: ContactProfileEvent = {
+        "type": "contact_profile",
+        "uid": uid,
+        "displayName": display_name,
+        "photoURL": photo_url,
+    }
+    await manager.broadcast_to(targets, event)
+    logger.debug(
+        "profile broadcast | uid=%s displayName=%r → %d target(s)",
+        uid,
+        display_name,
+        len(targets),
+    )
+
+
 async def _handle_refresh_token(
     uid: str,
     websocket: WebSocket,
@@ -398,3 +430,32 @@ async def _handle_refresh_token(
     }
     await websocket.send_text(json.dumps(auth_ok))
     logger.info("Token refreshed | uid=%s", uid)
+
+
+async def _handle_profile_update(
+    uid: str,
+    payload: dict[str, Any],
+) -> None:
+    """Handle ``{"type": "profile_update", "displayName": str}``.
+
+    Stores the custom nickname in the manager (separate from the Google account
+    ``displayName`` that comes from the JWT) and broadcasts a ``contact_profile``
+    event to all connected contacts so they can update their buddy-list in
+    real-time.
+
+    The custom nick takes precedence over the Google display name for all
+    outbound events (e.g. ``senderName`` in chat messages).  An empty string
+    resets the user back to their Google account name.
+    """
+    parsed = ws_schemas.ProfileUpdateEvent.model_validate(payload)
+    nick: str = parsed.displayName.strip()
+
+    manager.update_user_data(uid, nickName=nick)
+    user_data = manager.get_user_data(uid) or {}
+
+    # Effective display name: custom nick if set, otherwise Google account name.
+    effective_name: str = nick or user_data.get("displayName", "")
+    photo_url: str = user_data.get("photoURL", "")
+
+    await _broadcast_profile(uid, effective_name, photo_url)
+    logger.info("profile_update | uid=%s nickName=%r", uid, nick)

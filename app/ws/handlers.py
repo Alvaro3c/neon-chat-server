@@ -122,8 +122,9 @@ async def handle_message(sender_uid: str, payload: dict[str, Any]) -> None:
 
     # ── 5. Build the event ────────────────────────────────────────────────────
 
-    user_data = manager.get_user_data(sender_uid)
-    sender_name: str = (user_data or {}).get("displayName") or ""
+    user_data = manager.get_user_data(sender_uid) or {}
+    # Use the custom nick if set, otherwise fall back to the Google account name.
+    sender_name: str = user_data.get("nickName") or user_data.get("displayName") or ""
 
     event: MessageEvent = {
         "type": "message",

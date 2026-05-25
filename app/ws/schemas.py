@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 _MAX_TEXT: int = 2_000
 _MAX_EMOJI: int = 10
 _MAX_MOOD: int = 140
+_MAX_NICK: int = 100
 
 
 # ---------------------------------------------------------------------------
@@ -100,3 +101,16 @@ class MoodUpdateEvent(_Base):
 
     type: Literal["mood_update"]
     mood: str = Field(max_length=_MAX_MOOD)
+
+
+class ProfileUpdateEvent(_Base):
+    """``{"type": "profile_update", "displayName": str}``
+
+    Sent by the client when the user changes their custom nickname.
+    ``displayName`` may be empty (to reset to the Google account name).
+    The server stores the value in the connection manager and broadcasts
+    a ``contact_profile`` event to all connected contacts.
+    """
+
+    type: Literal["profile_update"]
+    displayName: str = Field(max_length=_MAX_NICK)
